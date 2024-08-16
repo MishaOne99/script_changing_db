@@ -1,26 +1,46 @@
 from random import randint, choice
 from datacenter.models import Schoolkid, Mark, Chastisement, Lesson, Commendation
 
+
+def get_student_info(name: str):
+    """Ищет информацию по ученику в БД
+
+    Args:
+        name (str): ФИО ученика
+
+    Raises:
+        ValueError: В БД, нет подходящего имени
+
+    Returns:
+       QuerySet: Возвращает информацию об ученике
+    """
+    try:
+        child = Schoolkid.objects.get(full_name__contains=name)
+        return child
+    except Schoolkid.DoesNotExist:
+        raise ValueError('Данного ученика нет в БД, проверьте правильность передаваеммых данных')
+    except Schoolkid.MultipleObjectsReturned:
+        childs = Schoolkid.objects.filter(full_name__contains=name)
+        for child in childs:
+            print(child)
+        raise ValueError('По вашему запросу выдало несколько человек, введите пожалуйста, более точное ФИО ученика')
+
+
 def fix_marks(name: str) -> None:
     """Ищет в БД плохие оценки и изменяет их на хорошие
 
     Args:
         name (str): ФИО ученика
     """
-    try:
-        child = Schoolkid.objects.get(full_name__contains=name)
-    except Schoolkid.DoesNotExist:
-        raise ValueError('Данного ученика нет в БД, проверьте правильность передаваеммых данных')
-        
+    child = get_student_info(name)
     marks = Mark.objects.filter(schoolkid=child, points__in=[2,3])
+    
     for mark in marks:
-        updates = Mark.objects.filter(created=mark.created,
-                                      subject=mark.subject,
-                                      points=mark.points,
-                                      schoolkid=mark.schoolkid)
-        for update in updates:
-            update.points = randint(4, 5)
-            update.save()
+        point = randint(4, 5)
+        Mark.objects.filter(created=mark.created,
+                            subject=mark.subject,
+                            points=mark.points,
+                            schoolkid=mark.schoolkid).update(points=point)
 
 
 def remove_chastisements(name: str) -> None:
@@ -29,13 +49,9 @@ def remove_chastisements(name: str) -> None:
     Args:
         name (str): ФИО ученика
     """
-    try:
-        child = Schoolkid.objects.get(full_name__contains=name)
-    except Schoolkid.DoesNotExist:
-        raise ValueError('Данного ученика нет в БД, проверьте правильность передаваеммых данных')
-        
-    chastisement = Chastisement.objects.filter(schoolkid=child)
-    chastisement.delete()
+    child = get_student_info(name)
+    chastisements = Chastisement.objects.filter(schoolkid=child)
+    chastisements.delete()
     
     
 def create_commendation(name: str, subject: str) -> None:
@@ -54,15 +70,11 @@ def create_commendation(name: str, subject: str) -> None:
                      'Мы с тобой не зря поработали!', 'Я вижу, как ты стараешься!', 'Ты растешь над собой!',
                      'Ты многое сделал, я это вижу!', 'Теперь у тебя точно все получится!']
     
+    child = get_student_info(name)
     try:
-        child = Schoolkid.objects.get(full_name__contains=name)
-    except Schoolkid.DoesNotExist:
-        raise ValueError('Данного ученика нет в БД, проверьте правильность передаваеммых данных')
-    try:
-        lessons = Lesson.objects.filter(year_of_study=child.year_of_study,
-                                  group_letter=child.group_letter,
-                                  subject__title=subject).order_by('-date')
-        lesson = choice(lessons)
+        lesson = Lesson.objects.filter(year_of_study=child.year_of_study,
+                                       group_letter=child.group_letter,
+                                       subject__title=subject).order_by('?').first()
     except IndexError:
         raise ValueError('Данного предмета нет в БД, проверьте правильность передаваеммых данных')
     
