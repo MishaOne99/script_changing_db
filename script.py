@@ -20,10 +20,7 @@ def get_student_info(name: str):
     except Schoolkid.DoesNotExist:
         raise ValueError('Данного ученика нет в БД, проверьте правильность передаваеммых данных')
     except Schoolkid.MultipleObjectsReturned:
-        childs = Schoolkid.objects.filter(full_name__contains=name)
-        for child in childs:
-            print(child)
-        raise ValueError('По вашему запросу выдало несколько человек, введите пожалуйста, более точное ФИО ученика')
+        raise ValueError('По вашему запросу выдало несколько человек, введите более точное ФИО ученика')
 
 
 def fix_marks(name: str) -> None:
@@ -33,14 +30,7 @@ def fix_marks(name: str) -> None:
         name (str): ФИО ученика
     """
     child = get_student_info(name)
-    marks = Mark.objects.filter(schoolkid=child, points__in=[2,3])
-    
-    for mark in marks:
-        point = randint(4, 5)
-        Mark.objects.filter(created=mark.created,
-                            subject=mark.subject,
-                            points=mark.points,
-                            schoolkid=mark.schoolkid).update(points=point)
+    Mark.objects.filter(schoolkid=child, points__in=[2,3]).update(points=5)
 
 
 def remove_chastisements(name: str) -> None:
@@ -71,16 +61,14 @@ def create_commendation(name: str, subject: str) -> None:
                      'Ты многое сделал, я это вижу!', 'Теперь у тебя точно все получится!']
     
     child = get_student_info(name)
-    try:
-        lesson = Lesson.objects.filter(year_of_study=child.year_of_study,
-                                       group_letter=child.group_letter,
-                                       subject__title=subject).order_by('?').first()
-    except IndexError:
-        raise ValueError('Данного предмета нет в БД, проверьте правильность передаваеммых данных')
-    
-    
-    if Commendation.objects.filter(created=lesson.date, schoolkid=child, subject=lesson.subject, teacher=lesson.teacher):
-        return create_commendation(name, subject)
+    lesson = Lesson.objects.filter(year_of_study=child.year_of_study,
+                                   group_letter=child.group_letter,
+                                   subject__title=subject).order_by('?').first()
+    if lesson:
+        if Commendation.objects.filter(created=lesson.date, schoolkid=child, subject=lesson.subject, teacher=lesson.teacher):
+            return create_commendation(name, subject)
+        else:
+            Commendation.objects.create(text=choice(commendations), created=lesson.date, schoolkid=child,
+                                        subject=lesson.subject, teacher=lesson.teacher)
     else:
-        Commendation.objects.create(text=choice(commendations), created=lesson.date, schoolkid=child,
-                                    subject=lesson.subject, teacher=lesson.teacher)
+        raise TypeError('Данного предмета нет в БД, проверьте правильность передаваеммых данных')
